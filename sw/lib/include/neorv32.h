@@ -854,14 +854,14 @@ enum NEORV32_XIP_CTRL_enum {
   XIP_CTRL_XIP_EN         = 10, /**< XIP control register(10) (r/w): XIP access enable */
   XIP_CTRL_XIP_ABYTES_LSB = 11, /**< XIP control register(11) (r/w): Number XIP address bytes (minus 1), LSB */
   XIP_CTRL_XIP_ABYTES_MSB = 12, /**< XIP control register(12) (r/w): Number XIP address bytes (minus 1), MSB */
-  XIP_CTRL_QSPI_EN        = 13, /**< XIP control register(13) (r/w): Enable QSPI mode */
-  XIP_CTRL_RD_CMD_LSB     = 14, /**< XIP control register(14) (r/w): SPI flash read command, LSB */
-  XIP_CTRL_RD_CMD_MSB     = 21, /**< XIP control register(21) (r/w): SPI flash read command, MSB */
-  XIP_CTRL_PAGE_LSB       = 22, /**< XIP control register(22) (r/w): XIP memory page, LSB */
-  XIP_CTRL_PAGE_MSB       = 25, /**< XIP control register(25) (r/w): XIP memory page, MSB */
+  XIP_CTRL_RD_CMD_LSB     = 13, /**< XIP control register(13) (r/w): SPI flash read command, LSB */
+  XIP_CTRL_RD_CMD_MSB     = 20, /**< XIP control register(20) (r/w): SPI flash read command, MSB */
+  XIP_CTRL_PAGE_LSB       = 21, /**< XIP control register(21) (r/w): XIP memory page, LSB */
+  XIP_CTRL_PAGE_MSB       = 24, /**< XIP control register(24) (r/w): XIP memory page, MSB */
+  XIP_CTRL_SPI_CSEN       = 25, /**< XIP control register(25) (r/w): SPI chip-select enable */
+  XIP_CTRL_HIGHSPEED      = 26, /**< XIP control register(26) (r/w): SPI high-speed mode enable (ignoring XIP_CTRL_PRSC) */
 
-  XIP_CTRL_PHY_BUSY       = 29, /**< XIP control register(29) (r/-): SPI PHY is busy */
-  XIP_CTRL_XIP_READY      = 30, /**< XIP control register(30) (r/-): XIP access is ready (setup done) */
+  XIP_CTRL_PHY_BUSY       = 30, /**< XIP control register(20) (r/-): SPI PHY is busy */
   XIP_CTRL_XIP_BUSY       = 31  /**< XIP control register(31) (r/-): XIP access in progress */
 };
 /**@}*/
@@ -907,8 +907,7 @@ typedef struct __attribute__((packed,aligned(4))) {
 
 /** BUSKEEPER control/data register bits */
 enum NEORV32_BUSKEEPER_CTRL_enum {
-  BUSKEEPER_ERR_TYPE_LSB  =  0, /**< BUSKEEPER control register( 0) (r/-): Bus error type LSB: 0=device error, 1=access timeout */
-  BUSKEEPER_ERR_TYPE_MSB  =  1, /**< BUSKEEPER control register( 1) (r/-): Bus error type MSB: 2=unexpected ACK, 3=unexpected ERR */
+  BUSKEEPER_ERR_TYPE      =  0, /**< BUSKEEPER control register( 0) (r/-): Bus error type: 0=device error, 1=access timeout */
   BUSKEEPER_NULL_CHECK_EN = 16, /**< BUSKEEPER control register(16) (r/w): Enable NULL address check */
   BUSKEEPER_ERR_FLAG      = 31  /**< BUSKEEPER control register(31) (r/-): Sticky error flag, clears after read or write access */
 };
@@ -1050,24 +1049,25 @@ typedef struct __attribute__((packed,aligned(4))) {
 
 /** SPI control register bits */
 enum NEORV32_SPI_CTRL_enum {
-  SPI_CTRL_CS0    =  0, /**< SPI control register(0)  (r/w): Direct chip select line 0 (output is low when set) */
-  SPI_CTRL_CS1    =  1, /**< SPI control register(1)  (r/w): Direct chip select line 1 (output is low when set) */
-  SPI_CTRL_CS2    =  2, /**< SPI control register(2)  (r/w): Direct chip select line 2 (output is low when set) */
-  SPI_CTRL_CS3    =  3, /**< SPI control register(3)  (r/w): Direct chip select line 3 (output is low when set) */
-  SPI_CTRL_CS4    =  4, /**< SPI control register(4)  (r/w): Direct chip select line 4 (output is low when set) */
-  SPI_CTRL_CS5    =  5, /**< SPI control register(5)  (r/w): Direct chip select line 5 (output is low when set) */
-  SPI_CTRL_CS6    =  6, /**< SPI control register(6)  (r/w): Direct chip select line 6 (output is low when set) */
-  SPI_CTRL_CS7    =  7, /**< SPI control register(7)  (r/w): Direct chip select line 7 (output is low when set) */
-  SPI_CTRL_EN     =  8, /**< SPI control register(8)  (r/w): SPI unit enable */
-  SPI_CTRL_CPHA   =  9, /**< SPI control register(9)  (r/w): Clock phase */
-  SPI_CTRL_PRSC0  = 10, /**< SPI control register(10) (r/w): Clock prescaler select bit 0 */
-  SPI_CTRL_PRSC1  = 11, /**< SPI control register(11) (r/w): Clock prescaler select bit 1 */
-  SPI_CTRL_PRSC2  = 12, /**< SPI control register(12) (r/w): Clock prescaler select bit 2 */
-  SPI_CTRL_SIZE0  = 13, /**< SPI control register(13) (r/w): Transfer data size lsb (00: 8-bit, 01: 16-bit, 10: 24-bit, 11: 32-bit) */
-  SPI_CTRL_SIZE1  = 14, /**< SPI control register(14) (r/w): Transfer data size msb (00: 8-bit, 01: 16-bit, 10: 24-bit, 11: 32-bit) */
-  SPI_CTRL_CPOL   = 15, /**< SPI control register(15) (r/w): Clock polarity */
+  SPI_CTRL_CS0       =  0, /**< SPI control register(0)  (r/w): Direct chip select line 0 (output is low when set) */
+  SPI_CTRL_CS1       =  1, /**< SPI control register(1)  (r/w): Direct chip select line 1 (output is low when set) */
+  SPI_CTRL_CS2       =  2, /**< SPI control register(2)  (r/w): Direct chip select line 2 (output is low when set) */
+  SPI_CTRL_CS3       =  3, /**< SPI control register(3)  (r/w): Direct chip select line 3 (output is low when set) */
+  SPI_CTRL_CS4       =  4, /**< SPI control register(4)  (r/w): Direct chip select line 4 (output is low when set) */
+  SPI_CTRL_CS5       =  5, /**< SPI control register(5)  (r/w): Direct chip select line 5 (output is low when set) */
+  SPI_CTRL_CS6       =  6, /**< SPI control register(6)  (r/w): Direct chip select line 6 (output is low when set) */
+  SPI_CTRL_CS7       =  7, /**< SPI control register(7)  (r/w): Direct chip select line 7 (output is low when set) */
+  SPI_CTRL_EN        =  8, /**< SPI control register(8)  (r/w): SPI unit enable */
+  SPI_CTRL_CPHA      =  9, /**< SPI control register(9)  (r/w): Clock phase */
+  SPI_CTRL_PRSC0     = 10, /**< SPI control register(10) (r/w): Clock prescaler select bit 0 */
+  SPI_CTRL_PRSC1     = 11, /**< SPI control register(11) (r/w): Clock prescaler select bit 1 */
+  SPI_CTRL_PRSC2     = 12, /**< SPI control register(12) (r/w): Clock prescaler select bit 2 */
+  SPI_CTRL_SIZE0     = 13, /**< SPI control register(13) (r/w): Transfer data size lsb (00: 8-bit, 01: 16-bit, 10: 24-bit, 11: 32-bit) */
+  SPI_CTRL_SIZE1     = 14, /**< SPI control register(14) (r/w): Transfer data size msb (00: 8-bit, 01: 16-bit, 10: 24-bit, 11: 32-bit) */
+  SPI_CTRL_CPOL      = 15, /**< SPI control register(15) (r/w): Clock polarity */
+  SPI_CTRL_HIGHSPEED = 16, /**< SPI control register(16) (r/w): SPI high-speed mode enable (ignoring SPI_CTRL_PRSC) */
 
-  SPI_CTRL_BUSY   = 31  /**< SPI control register(31) (r/-): SPI busy flag */
+  SPI_CTRL_BUSY      = 31  /**< SPI control register(31) (r/-): SPI busy flag */
 };
 /**@}*/
 
@@ -1165,8 +1165,8 @@ enum NEORV32_WDT_CTRL_enum {
 /**@{*/
 /** GPIO module prototype */
 typedef struct __attribute__((packed,aligned(4))) {
-	const uint32_t INPUT_LO;  /**< offset 0:  parallel input port lower 32-bit */
-	const uint32_t INPUT_HI;  /**< offset 4:  parallel input port upper 32-bit */
+	const uint32_t INPUT_LO;  /**< offset 0:  parallel input port lower 32-bit, read-only */
+	const uint32_t INPUT_HI;  /**< offset 4:  parallel input port upper 32-bit, read-only */
 	uint32_t       OUTPUT_LO; /**< offset 8:  parallel output port lower 32-bit */
 	uint32_t       OUTPUT_HI; /**< offset 12: parallel output port upper 32-bit */
 } neorv32_gpio_t;
@@ -1234,7 +1234,7 @@ enum NEORV32_NEOLED_CTRL_enum {
  * @name IO Device: System Configuration Information Memory (SYSINFO)
  **************************************************************************/
 /**@{*/
-/** SYSINFO module prototype */
+/** SYSINFO module prototype - whole module is read-only */
 typedef struct __attribute__((packed,aligned(4))) {
 	const uint32_t CLK;         /**< offset 0:  clock speed in Hz */
 	const uint32_t CPU;         /**< offset 4:  CPU core features (#NEORV32_SYSINFO_CPU_enum) */

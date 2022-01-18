@@ -26,6 +26,13 @@ defined by the `hw_version_c` constant in the main VHDL package file [`rtl/core/
 
 | Date (*dd.mm.yyyy*) | Version | Comment |
 |:----------:|:-------:|:--------|
+| 18.01.2022 | 1.6.6.1 | minor **MTIME** VHDL code clean-up; minor logic optimization of **CPU's bus unit** |
+| 17.01.2022 |[**:rocket:1.6.6**](https://github.com/stnolting/neorv32/releases/tag/v1.6.6) | **New release** |
+| 14.01.2022 | 1.6.5.9 | **GPIO** module: write accesses to the GPIO module's "input" registers will now raise a bus exception; [PR #255](https://github.com/stnolting/neorv32/pull/255) |
+| 11.01.2022 | 1.6.5.8 | minor rtl code clean-ups and edits in `rtl/core`; any write access to the SYSINFO module will now show up as a BUSKEEPER's "DEVICE_ERR" |
+| 08.01.2022 | 1.6.5.7 | :bug: fixed bug in BUSKEEPER's error type logic (introduced in version `1.6.5.4`); removed "unexpected ERR/ACK" error codes; [PR #253](https://github.com/stnolting/neorv32/pull/253) |
+| 07.01.2022 | 1.6.5.6 | :sparkles: **XIP & SPI: added high-speed SPI mode** (SPI clocking at half of the processor clock), see [PR #251](https://github.com/stnolting/neorv32/pull/251) |
+| 06.01.2022 | 1.6.5.5 | :warning: optimized/reworked XIP (execute in place) module, see [PR #249](https://github.com/stnolting/neorv32/pull/249) |
 | 04.01.2022 | 1.6.5.4 | **BUSKEEPER** can now optionally check for NULL address accesses (address `0x00000000`), see [PR #247](https://github.com/stnolting/neorv32/pull/247) |
 | 02.01.2022 | 1.6.5.3 | :sparkles: **added Execute In Place (XIP) module** allowing code to be directly executed from an external SPI flash, see [PR #244](https://github.com/stnolting/neorv32/pull/244) |
 | 02.01.2022 | 1.6.5.2 | :bug: fixed minor bug in CPU's instruction fetch unit (only issue new instruction fetch request when the previous one has been completed) |

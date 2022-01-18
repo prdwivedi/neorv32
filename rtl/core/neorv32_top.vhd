@@ -90,7 +90,7 @@ entity neorv32_top is
     MEM_INT_DMEM_EN              : boolean := false;  -- implement processor-internal data memory
     MEM_INT_DMEM_SIZE            : natural := 8*1024; -- size of processor-internal data memory in bytes
 
-    -- Internal Cache memory (iCACHE) --
+    -- Internal Instruction Cache (iCACHE) --
     ICACHE_EN                    : boolean := false;  -- implement instruction cache
     ICACHE_NUM_BLOCKS            : natural := 4;      -- i-cache: number of blocks (min 1), has to be a power of 2
     ICACHE_BLOCK_SIZE            : natural := 64;     -- i-cache: block size in bytes (min 4), has to be a power of 2
@@ -251,10 +251,11 @@ architecture neorv32_top_rtl of neorv32_top is
   signal wdt_rstn : std_ulogic;
 
   -- clock generator --
-  signal clk_div    : std_ulogic_vector(11 downto 0);
-  signal clk_div_ff : std_ulogic_vector(11 downto 0);
-  signal clk_gen    : std_ulogic_vector(07 downto 0);
-  signal clk_gen_en : std_ulogic_vector(09 downto 0);
+  signal clk_div       : std_ulogic_vector(11 downto 0);
+  signal clk_div_ff    : std_ulogic_vector(11 downto 0);
+  signal clk_gen       : std_ulogic_vector(07 downto 0);
+  signal clk_gen_en    : std_ulogic_vector(09 downto 0);
+  signal clk_gen_en_ff : std_ulogic;
   --
   signal wdt_cg_en    : std_ulogic;
   signal uart0_cg_en  : std_ulogic;
@@ -269,18 +270,18 @@ architecture neorv32_top_rtl of neorv32_top is
 
   -- bus interface --
   type bus_interface_t is record
-    addr   : std_ulogic_vector(data_width_c-1 downto 0); -- bus access address
-    rdata  : std_ulogic_vector(data_width_c-1 downto 0); -- bus read data
-    wdata  : std_ulogic_vector(data_width_c-1 downto 0); -- bus write data
-    ben    : std_ulogic_vector(03 downto 0); -- byte enable
-    we     : std_ulogic; -- write enable
-    re     : std_ulogic; -- read enable
-    ack    : std_ulogic; -- bus transfer acknowledge
-    err    : std_ulogic; -- bus transfer error
-    fence  : std_ulogic; -- fence(i) instruction executed
-    priv   : std_ulogic_vector(1 downto 0); -- current privilege level
-    src    : std_ulogic; -- access source (1=instruction fetch, 0=data access)
-    lock   : std_ulogic; -- exclusive access request
+    addr  : std_ulogic_vector(data_width_c-1 downto 0); -- bus access address
+    rdata : std_ulogic_vector(data_width_c-1 downto 0); -- bus read data
+    wdata : std_ulogic_vector(data_width_c-1 downto 0); -- bus write data
+    ben   : std_ulogic_vector(03 downto 0); -- byte enable
+    we    : std_ulogic; -- write enable
+    re    : std_ulogic; -- read enable
+    ack   : std_ulogic; -- bus transfer acknowledge
+    err   : std_ulogic; -- bus transfer error
+    fence : std_ulogic; -- fence(i) instruction executed
+    priv  : std_ulogic_vector(1 downto 0); -- current privilege level
+    src   : std_ulogic; -- access source (1=instruction fetch, 0=data access)
+    lock  : std_ulogic; -- exclusive access request
   end record;
   signal cpu_i, i_cache, cpu_d, p_bus : bus_interface_t;
 
@@ -375,7 +376,7 @@ begin
   cond_sel_string_f(boolean(XIRQ_NUM_CH > 0), "XIRQ ", "") &
   cond_sel_string_f(IO_GPTMR_EN, "GPTMR ", "") &
   cond_sel_string_f(IO_XIP_EN, "XIP ", "") &
-  ""
+  "" 
   severity note;
 
 
@@ -434,24 +435,14 @@ begin
   clock_generator: process(sys_rstn, clk_i)
   begin
     if (sys_rstn = '0') then
-      clk_gen_en <= (others => '-');
-      clk_div    <= (others => '0');
-      clk_div_ff <= (others => '-');
-      clk_gen    <= (others => '-');
+      clk_gen_en_ff <= '-';
+      clk_div       <= (others => '0'); -- reset required
+      clk_div_ff    <= (others => '-');
+      clk_gen       <= (others => '-');
     elsif rising_edge(clk_i) then
-      -- fresh clocks anyone? --
-      clk_gen_en(0) <= wdt_cg_en;
-      clk_gen_en(1) <= uart0_cg_en;
-      clk_gen_en(2) <= uart1_cg_en;
-      clk_gen_en(3) <= spi_cg_en;
-      clk_gen_en(4) <= twi_cg_en;
-      clk_gen_en(5) <= pwm_cg_en;
-      clk_gen_en(6) <= cfs_cg_en;
-      clk_gen_en(7) <= neoled_cg_en;
-      clk_gen_en(8) <= gptmr_cg_en;
-      clk_gen_en(9) <= xip_cg_en;
+      clk_gen_en_ff <= or_reduce_f(clk_gen_en);
       -- actual clock generator --
-      if (or_reduce_f(clk_gen_en) = '1') then
+      if (clk_gen_en_ff = '1') then
         clk_div <= std_ulogic_vector(unsigned(clk_div) + 1);
       end if;
       -- clock enables: rising edge detectors --
@@ -467,21 +458,33 @@ begin
     end if;
   end process clock_generator;
 
+  -- fresh clocks anyone? --
+  clk_gen_en(0) <= wdt_cg_en;
+  clk_gen_en(1) <= uart0_cg_en;
+  clk_gen_en(2) <= uart1_cg_en;
+  clk_gen_en(3) <= spi_cg_en;
+  clk_gen_en(4) <= twi_cg_en;
+  clk_gen_en(5) <= pwm_cg_en;
+  clk_gen_en(6) <= cfs_cg_en;
+  clk_gen_en(7) <= neoled_cg_en;
+  clk_gen_en(8) <= gptmr_cg_en;
+  clk_gen_en(9) <= xip_cg_en;
+
 
   -- CPU Core -------------------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
   neorv32_cpu_inst: neorv32_cpu
   generic map (
     -- General --
-    HW_THREAD_ID                 => HW_THREAD_ID,        -- hardware thread id
-    CPU_BOOT_ADDR                => cpu_boot_addr_c,     -- cpu boot address
-    CPU_DEBUG_ADDR               => dm_base_c,           -- cpu debug mode start address
+    HW_THREAD_ID                 => HW_THREAD_ID,                 -- hardware thread id
+    CPU_BOOT_ADDR                => cpu_boot_addr_c,              -- cpu boot address
+    CPU_DEBUG_ADDR               => dm_base_c,                    -- cpu debug mode start address
     -- RISC-V CPU Extensions --
     CPU_EXTENSION_RISCV_A        => CPU_EXTENSION_RISCV_A,        -- implement atomic extension?
     CPU_EXTENSION_RISCV_B        => CPU_EXTENSION_RISCV_B,        -- implement bit-manipulation extension?
     CPU_EXTENSION_RISCV_C        => CPU_EXTENSION_RISCV_C,        -- implement compressed extension?
     CPU_EXTENSION_RISCV_E        => CPU_EXTENSION_RISCV_E,        -- implement embedded RF extension?
-    CPU_EXTENSION_RISCV_M        => CPU_EXTENSION_RISCV_M,        -- implement muld/div extension?
+    CPU_EXTENSION_RISCV_M        => CPU_EXTENSION_RISCV_M,        -- implement mul/div extension?
     CPU_EXTENSION_RISCV_U        => CPU_EXTENSION_RISCV_U,        -- implement user mode extension?
     CPU_EXTENSION_RISCV_Zfinx    => CPU_EXTENSION_RISCV_Zfinx,    -- implement 32-bit floating-point extension (using INT reg!)
     CPU_EXTENSION_RISCV_Zicsr    => CPU_EXTENSION_RISCV_Zicsr,    -- implement CSR system?
@@ -491,57 +494,57 @@ begin
     CPU_EXTENSION_RISCV_Zmmul    => CPU_EXTENSION_RISCV_Zmmul,    -- implement multiply-only M sub-extension?
     CPU_EXTENSION_RISCV_DEBUG    => ON_CHIP_DEBUGGER_EN,          -- implement CPU debug mode?
     -- Extension Options --
-    FAST_MUL_EN                  => FAST_MUL_EN,         -- use DSPs for M extension's multiplier
-    FAST_SHIFT_EN                => FAST_SHIFT_EN,       -- use barrel shifter for shift operations
-    CPU_CNT_WIDTH                => CPU_CNT_WIDTH,       -- total width of CPU cycle and instret counters (0..64)
-    CPU_IPB_ENTRIES              => CPU_IPB_ENTRIES,     -- entries is instruction prefetch buffer, has to be a power of 2
+    FAST_MUL_EN                  => FAST_MUL_EN,                  -- use DSPs for M extension's multiplier
+    FAST_SHIFT_EN                => FAST_SHIFT_EN,                -- use barrel shifter for shift operations
+    CPU_CNT_WIDTH                => CPU_CNT_WIDTH,                -- total width of CPU cycle and instret counters (0..64)
+    CPU_IPB_ENTRIES              => CPU_IPB_ENTRIES,              -- entries is instruction prefetch buffer, has to be a power of 2
     -- Physical Memory Protection (PMP) --
-    PMP_NUM_REGIONS              => PMP_NUM_REGIONS,     -- number of regions (0..64)
-    PMP_MIN_GRANULARITY          => PMP_MIN_GRANULARITY, -- minimal region granularity in bytes, has to be a power of 2, min 8 bytes
+    PMP_NUM_REGIONS              => PMP_NUM_REGIONS,              -- number of regions (0..64)
+    PMP_MIN_GRANULARITY          => PMP_MIN_GRANULARITY,          -- minimal region granularity in bytes, has to be a power of 2, min 8 bytes
     -- Hardware Performance Monitors (HPM) --
-    HPM_NUM_CNTS                 => HPM_NUM_CNTS,        -- number of implemented HPM counters (0..29)
-    HPM_CNT_WIDTH                => HPM_CNT_WIDTH        -- total size of HPM counters (0..64)
+    HPM_NUM_CNTS                 => HPM_NUM_CNTS,                 -- number of implemented HPM counters (0..29)
+    HPM_CNT_WIDTH                => HPM_CNT_WIDTH                 -- total size of HPM counters (0..64)
   )
   port map (
     -- global control --
-    clk_i          => clk_i,        -- global clock, rising edge
-    rstn_i         => sys_rstn,     -- global reset, low-active, async
-    sleep_o        => open,         -- cpu is in sleep mode when set
-    debug_o        => debug_mode,   -- cpu is in debug mode when set
+    clk_i         => clk_i,       -- global clock, rising edge
+    rstn_i        => sys_rstn,    -- global reset, low-active, async
+    sleep_o       => open,        -- cpu is in sleep mode when set
+    debug_o       => debug_mode,  -- cpu is in debug mode when set
     -- instruction bus interface --
-    i_bus_addr_o   => cpu_i.addr,   -- bus access address
-    i_bus_rdata_i  => cpu_i.rdata,  -- bus read data
-    i_bus_wdata_o  => cpu_i.wdata,  -- bus write data
-    i_bus_ben_o    => cpu_i.ben,    -- byte enable
-    i_bus_we_o     => cpu_i.we,     -- write enable
-    i_bus_re_o     => cpu_i.re,     -- read enable
-    i_bus_lock_o   => cpu_i.lock,   -- exclusive access request
-    i_bus_ack_i    => cpu_i.ack,    -- bus transfer acknowledge
-    i_bus_err_i    => cpu_i.err,    -- bus transfer error
-    i_bus_fence_o  => cpu_i.fence,  -- executed FENCEI operation
-    i_bus_priv_o   => cpu_i.priv,   -- privilege level
+    i_bus_addr_o  => cpu_i.addr,  -- bus access address
+    i_bus_rdata_i => cpu_i.rdata, -- bus read data
+    i_bus_wdata_o => cpu_i.wdata, -- bus write data
+    i_bus_ben_o   => cpu_i.ben,   -- byte enable
+    i_bus_we_o    => cpu_i.we,    -- write enable
+    i_bus_re_o    => cpu_i.re,    -- read enable
+    i_bus_lock_o  => cpu_i.lock,  -- exclusive access request
+    i_bus_ack_i   => cpu_i.ack,   -- bus transfer acknowledge
+    i_bus_err_i   => cpu_i.err,   -- bus transfer error
+    i_bus_fence_o => cpu_i.fence, -- executed FENCEI operation
+    i_bus_priv_o  => cpu_i.priv,  -- privilege level
     -- data bus interface --
-    d_bus_addr_o   => cpu_d.addr,   -- bus access address
-    d_bus_rdata_i  => cpu_d.rdata,  -- bus read data
-    d_bus_wdata_o  => cpu_d.wdata,  -- bus write data
-    d_bus_ben_o    => cpu_d.ben,    -- byte enable
-    d_bus_we_o     => cpu_d.we,     -- write enable
-    d_bus_re_o     => cpu_d.re,     -- read enable
-    d_bus_lock_o   => cpu_d.lock,   -- exclusive access request
-    d_bus_ack_i    => cpu_d.ack,    -- bus transfer acknowledge
-    d_bus_err_i    => cpu_d.err,    -- bus transfer error
-    d_bus_fence_o  => cpu_d.fence,  -- executed FENCE operation
-    d_bus_priv_o   => cpu_d.priv,   -- privilege level
+    d_bus_addr_o  => cpu_d.addr,  -- bus access address
+    d_bus_rdata_i => cpu_d.rdata, -- bus read data
+    d_bus_wdata_o => cpu_d.wdata, -- bus write data
+    d_bus_ben_o   => cpu_d.ben,   -- byte enable
+    d_bus_we_o    => cpu_d.we,    -- write enable
+    d_bus_re_o    => cpu_d.re,    -- read enable
+    d_bus_lock_o  => cpu_d.lock,  -- exclusive access request
+    d_bus_ack_i   => cpu_d.ack,   -- bus transfer acknowledge
+    d_bus_err_i   => cpu_d.err,   -- bus transfer error
+    d_bus_fence_o => cpu_d.fence, -- executed FENCE operation
+    d_bus_priv_o  => cpu_d.priv,  -- privilege level
     -- system time input from MTIME --
-    time_i         => mtime_time,   -- current system time
+    time_i        => mtime_time,  -- current system time
     -- non-maskable interrupt --
-    msw_irq_i      => msw_irq_i,    -- machine software interrupt
-    mext_irq_i     => mext_irq_i,   -- machine external interrupt request
-    mtime_irq_i    => mtime_irq,    -- machine timer interrupt
+    msw_irq_i     => msw_irq_i,   -- machine software interrupt
+    mext_irq_i    => mext_irq_i,  -- machine external interrupt request
+    mtime_irq_i   => mtime_irq,   -- machine timer interrupt
     -- fast interrupts (custom) --
-    firq_i         => fast_irq,     -- fast interrupt trigger
+    firq_i        => fast_irq,    -- fast interrupt trigger
     -- debug mode (halt) request --
-    db_halt_req_i  => dci_halt_req
+    db_halt_req_i => dci_halt_req
   );
 
   -- misc --
@@ -552,25 +555,24 @@ begin
   fence_o  <= cpu_d.fence; -- indicates an executed FENCE operation
   fencei_o <= cpu_i.fence; -- indicates an executed FENCEI operation
 
-  -- fast interrupt requests (FIRQs) --
-  -- these signals are single-shot --
+  -- fast interrupt requests (FIRQs) - triggers are SINGLE-SHOT --
   fast_irq(00) <= wdt_irq;       -- HIGHEST PRIORITY - watchdog
   fast_irq(01) <= cfs_irq;       -- custom functions subsystem
   fast_irq(02) <= uart0_rxd_irq; -- primary UART (UART0) RX
   fast_irq(03) <= uart0_txd_irq; -- primary UART (UART0) TX
   fast_irq(04) <= uart1_rxd_irq; -- secondary UART (UART1) RX
   fast_irq(05) <= uart1_txd_irq; -- secondary UART (UART1) TX
-  fast_irq(06) <= spi_irq;       -- SPI
-  fast_irq(07) <= twi_irq;       -- TWI
+  fast_irq(06) <= spi_irq;       -- SPI transfer done
+  fast_irq(07) <= twi_irq;       -- TWI transfer done
   fast_irq(08) <= xirq_irq;      -- external interrupt controller
-  fast_irq(09) <= neoled_irq;    -- NEOLED buffer free
+  fast_irq(09) <= neoled_irq;    -- NEOLED buffer IRQ
   fast_irq(10) <= slink_rx_irq;  -- SLINK RX
   fast_irq(11) <= slink_tx_irq;  -- SLINK TX
   fast_irq(12) <= gptmr_irq;     -- general purpose timer
   --
-  fast_irq(13) <= '0'; -- reserved
-  fast_irq(14) <= '0'; -- reserved
-  fast_irq(15) <= '0'; -- LOWEST PRIORITY - reserved
+  fast_irq(13) <= '0';           -- reserved
+  fast_irq(14) <= '0';           -- reserved
+  fast_irq(15) <= '0';           -- LOWEST PRIORITY - reserved
 
 
   -- CPU Instruction Cache ------------------------------------------------------------------
@@ -585,27 +587,27 @@ begin
     )
     port map (
       -- global control --
-      clk_i         => clk_i,          -- global clock, rising edge
-      rstn_i        => sys_rstn,       -- global reset, low-active, async
-      clear_i       => cpu_i.fence,    -- cache clear
+      clk_i        => clk_i,         -- global clock, rising edge
+      rstn_i       => sys_rstn,      -- global reset, low-active, async
+      clear_i      => cpu_i.fence,   -- cache clear
       -- host controller interface --
-      host_addr_i   => cpu_i.addr,     -- bus access address
-      host_rdata_o  => cpu_i.rdata,    -- bus read data
-      host_wdata_i  => cpu_i.wdata,    -- bus write data
-      host_ben_i    => cpu_i.ben,      -- byte enable
-      host_we_i     => cpu_i.we,       -- write enable
-      host_re_i     => cpu_i.re,       -- read enable
-      host_ack_o    => cpu_i.ack,      -- bus transfer acknowledge
-      host_err_o    => cpu_i.err,      -- bus transfer error
+      host_addr_i  => cpu_i.addr,    -- bus access address
+      host_rdata_o => cpu_i.rdata,   -- bus read data
+      host_wdata_i => cpu_i.wdata,   -- bus write data
+      host_ben_i   => cpu_i.ben,     -- byte enable
+      host_we_i    => cpu_i.we,      -- write enable
+      host_re_i    => cpu_i.re,      -- read enable
+      host_ack_o   => cpu_i.ack,     -- bus transfer acknowledge
+      host_err_o   => cpu_i.err,     -- bus transfer error
       -- peripheral bus interface --
-      bus_addr_o    => i_cache.addr,   -- bus access address
-      bus_rdata_i   => i_cache.rdata,  -- bus read data
-      bus_wdata_o   => i_cache.wdata,  -- bus write data
-      bus_ben_o     => i_cache.ben,    -- byte enable
-      bus_we_o      => i_cache.we,     -- write enable
-      bus_re_o      => i_cache.re,     -- read enable
-      bus_ack_i     => i_cache.ack,    -- bus transfer acknowledge
-      bus_err_i     => i_cache.err     -- bus transfer error
+      bus_addr_o   => i_cache.addr,  -- bus access address
+      bus_rdata_i  => i_cache.rdata, -- bus read data
+      bus_wdata_o  => i_cache.wdata, -- bus write data
+      bus_ben_o    => i_cache.ben,   -- byte enable
+      bus_we_o     => i_cache.we,    -- write enable
+      bus_re_o     => i_cache.re,    -- read enable
+      bus_ack_i    => i_cache.ack,   -- bus transfer acknowledge
+      bus_err_i    => i_cache.err    -- bus transfer error
     );
   end generate;
 
@@ -634,39 +636,39 @@ begin
   )
   port map (
     -- global control --
-    clk_i           => clk_i,          -- global clock, rising edge
-    rstn_i          => sys_rstn,       -- global reset, low-active, async
+    clk_i          => clk_i,         -- global clock, rising edge
+    rstn_i         => sys_rstn,      -- global reset, low-active, async
     -- controller interface a --
-    ca_bus_addr_i   => cpu_d.addr,     -- bus access address
-    ca_bus_rdata_o  => cpu_d.rdata,    -- bus read data
-    ca_bus_wdata_i  => cpu_d.wdata,    -- bus write data
-    ca_bus_ben_i    => cpu_d.ben,      -- byte enable
-    ca_bus_we_i     => cpu_d.we,       -- write enable
-    ca_bus_re_i     => cpu_d.re,       -- read enable
-    ca_bus_lock_i   => cpu_d.lock,     -- exclusive access request
-    ca_bus_ack_o    => cpu_d.ack,      -- bus transfer acknowledge
-    ca_bus_err_o    => cpu_d.err,      -- bus transfer error
+    ca_bus_addr_i  => cpu_d.addr,    -- bus access address
+    ca_bus_rdata_o => cpu_d.rdata,   -- bus read data
+    ca_bus_wdata_i => cpu_d.wdata,   -- bus write data
+    ca_bus_ben_i   => cpu_d.ben,     -- byte enable
+    ca_bus_we_i    => cpu_d.we,      -- write enable
+    ca_bus_re_i    => cpu_d.re,      -- read enable
+    ca_bus_lock_i  => cpu_d.lock,    -- exclusive access request
+    ca_bus_ack_o   => cpu_d.ack,     -- bus transfer acknowledge
+    ca_bus_err_o   => cpu_d.err,     -- bus transfer error
     -- controller interface b --
-    cb_bus_addr_i   => i_cache.addr,   -- bus access address
-    cb_bus_rdata_o  => i_cache.rdata,  -- bus read data
-    cb_bus_wdata_i  => i_cache.wdata,  -- bus write data
-    cb_bus_ben_i    => i_cache.ben,    -- byte enable
-    cb_bus_we_i     => i_cache.we,     -- write enable
-    cb_bus_re_i     => i_cache.re,     -- read enable
-    cb_bus_lock_i   => i_cache.lock,   -- exclusive access request
-    cb_bus_ack_o    => i_cache.ack,    -- bus transfer acknowledge
-    cb_bus_err_o    => i_cache.err,    -- bus transfer error
+    cb_bus_addr_i  => i_cache.addr,  -- bus access address
+    cb_bus_rdata_o => i_cache.rdata, -- bus read data
+    cb_bus_wdata_i => i_cache.wdata, -- bus write data
+    cb_bus_ben_i   => i_cache.ben,   -- byte enable
+    cb_bus_we_i    => i_cache.we,    -- write enable
+    cb_bus_re_i    => i_cache.re,    -- read enable
+    cb_bus_lock_i  => i_cache.lock,  -- exclusive access request
+    cb_bus_ack_o   => i_cache.ack,   -- bus transfer acknowledge
+    cb_bus_err_o   => i_cache.err,   -- bus transfer error
     -- peripheral bus --
-    p_bus_src_o     => p_bus.src,      -- access source: 0 = A (data), 1 = B (instructions)
-    p_bus_addr_o    => p_bus.addr,     -- bus access address
-    p_bus_rdata_i   => p_bus.rdata,    -- bus read data
-    p_bus_wdata_o   => p_bus.wdata,    -- bus write data
-    p_bus_ben_o     => p_bus.ben,      -- byte enable
-    p_bus_we_o      => p_bus.we,       -- write enable
-    p_bus_re_o      => p_bus.re,       -- read enable
-    p_bus_lock_o    => p_bus.lock,     -- exclusive access request
-    p_bus_ack_i     => p_bus.ack,      -- bus transfer acknowledge
-    p_bus_err_i     => bus_error       -- bus transfer error
+    p_bus_src_o    => p_bus.src,     -- access source: 0 = A (data), 1 = B (instructions)
+    p_bus_addr_o   => p_bus.addr,    -- bus access address
+    p_bus_rdata_i  => p_bus.rdata,   -- bus read data
+    p_bus_wdata_o  => p_bus.wdata,   -- bus write data
+    p_bus_ben_o    => p_bus.ben,     -- byte enable
+    p_bus_we_o     => p_bus.we,      -- write enable
+    p_bus_re_o     => p_bus.re,      -- read enable
+    p_bus_lock_o   => p_bus.lock,    -- exclusive access request
+    p_bus_ack_i    => p_bus.ack,     -- bus transfer acknowledge
+    p_bus_err_i    => bus_error      -- bus transfer error
   );
 
   -- current CPU privilege level --
@@ -998,11 +1000,11 @@ begin
       data_i => p_bus.wdata,               -- data in
       data_o => resp_bus(RESP_GPIO).rdata, -- data out
       ack_o  => resp_bus(RESP_GPIO).ack,   -- transfer acknowledge
+      err_o  => resp_bus(RESP_GPIO).err,   -- transfer error
       -- parallel io --
       gpio_o => gpio_o,
       gpio_i => gpio_i
     );
-    resp_bus(RESP_GPIO).err <= '0'; -- no access error possible
   end generate;
 
   neorv32_gpio_inst_false:
@@ -1545,11 +1547,11 @@ begin
     clk_i  => clk_i,                        -- global clock line
     addr_i => p_bus.addr,                   -- address
     rden_i => io_rden,                      -- read enable
+    wren_i => io_wren,                      -- write enable
     data_o => resp_bus(RESP_SYSINFO).rdata, -- data out
-    ack_o  => resp_bus(RESP_SYSINFO).ack    -- transfer acknowledge
+    ack_o  => resp_bus(RESP_SYSINFO).ack,   -- transfer acknowledge
+    err_o  => resp_bus(RESP_SYSINFO).err    -- transfer error
   );
-
-  resp_bus(RESP_SYSINFO).err <= '0'; -- no access error possible
 
 
   -- **************************************************************************************************************************
